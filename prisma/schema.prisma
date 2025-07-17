@@ -13,3 +13,47 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+
+model Product {
+  id          String @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal 
+  stock       Int
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model Order {
+  id         String    @id @default(uuid())
+  client     String
+  totalPrice Decimal   @map("total_price")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  items      OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  orderId      String   @map("order_id")
+  productId    String   @map("product_id")
+  productName  String   @map("product_name")
+  amount       Int
+  unitPrice    Decimal  @map("unit_price")
+  totalPrice   Decimal  @map("total_price")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  order        Order    @relation(fields: [orderId], references: [id])
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
