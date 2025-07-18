@@ -10,10 +10,14 @@ interface OrderRequest {
     items: OrderItemRequest[];
 }
 
+interface UpdateOrderItemRequest {
+    productId: string;
+    amount: number; // Se amount = 0, remove o produto
+}
+
 interface UpdateOrderRequest {
     id: string;
-    client?: string;
-    items?: OrderItemRequest[];
+    items: UpdateOrderItemRequest[];
 }
 
 // Criar Pedido
@@ -175,9 +179,155 @@ class DeleteOrderService {
     }
 }
 
+// Atualizar Pedido
+class UpdateOrderService {
+    async execute({ id, items }: UpdateOrderRequest) {
+        
+        if (!id) {
+            throw new Error("ID do pedido é obrigatório")
+        }
+
+        if (!items || items.length === 0) {
+            throw new Error("Deve fornecer pelo menos um item para atualizar")
+        }
+
+        const existingOrder = await prismaClient.order.findUnique({
+            where: { id },
+            include: { items: true }
+        })
+
+        if (!existingOrder) {
+            throw new Error("Pedido não encontrado")
+        }
+
+        // Processar cada item da requisição
+        for (const updateItem of items) {
+            const product = await prismaClient.product.findUnique({
+                where: { id: updateItem.productId }
+            })
+
+            if (!product) {
+                throw new Error(`Produto com ID ${updateItem.productId} não encontrado`)
+            }
+
+            const existingOrderItem = existingOrder.items.find(
+                item => item.productId === updateItem.productId
+            )
+
+            // Se amount = 0, remover o produto
+            if (updateItem.amount === 0) {
+                if (existingOrderItem) {
+                    // Restaurar estoque
+                    await prismaClient.product.update({
+                        where: { id: updateItem.productId },
+                        data: {
+                            stock: { increment: existingOrderItem.amount }
+                        }
+                    })
+
+                    // Remover item do pedido
+                    await prismaClient.orderItem.delete({
+                        where: { id: existingOrderItem.id }
+                    })
+                }
+                continue;
+            }
+
+            // Verificar estoque disponível
+            let stockNeeded = updateItem.amount;
+            if (existingOrderItem) {
+                // Se já existe, calcular diferença
+                stockNeeded = updateItem.amount - existingOrderItem.amount;
+            }
+
+            // Só verifica estoque se for necessário retirar mais do estoque
+            if (stockNeeded > 0 && product.stock < stockNeeded) {
+                throw new Error(`Estoque insuficiente para o produto ${product.name}. Disponível: ${product.stock}`)
+            }
+
+            if (existingOrderItem) {
+                // Atualizar item existente
+                await prismaClient.orderItem.update({
+                    where: { id: existingOrderItem.id },
+                    data: {
+                        amount: updateItem.amount,
+                        totalPrice: Number(product.price) * updateItem.amount
+                    }
+                })
+
+                // Atualizar estoque (diferença)
+                if (stockNeeded !== 0) {
+                    if (stockNeeded > 0) {
+                        // Precisa tirar do estoque
+                        await prismaClient.product.update({
+                            where: { id: updateItem.productId },
+                            data: {
+                                stock: { decrement: stockNeeded }
+                            }
+                        })
+                    } else {
+                        // Precisa devolver ao estoque
+                        await prismaClient.product.update({
+                            where: { id: updateItem.productId },
+                            data: {
+                                stock: { increment: Math.abs(stockNeeded) }
+                            }
+                        })
+                    }
+                }
+            } else {
+                // Adicionar novo item
+                await prismaClient.orderItem.create({
+                    data: {
+                        orderId: id,
+                        productId: updateItem.productId,
+                        productName: product.name,
+                        amount: updateItem.amount,
+                        unitPrice: product.price,
+                        totalPrice: Number(product.price) * updateItem.amount
+                    }
+                })
+
+                // Reduzir estoque
+                await prismaClient.product.update({
+                    where: { id: updateItem.productId },
+                    data: {
+                        stock: { decrement: updateItem.amount }
+                    }
+                })
+            }
+        }
+
+        // Recalcular total do pedido
+        const updatedOrderItems = await prismaClient.orderItem.findMany({
+            where: { orderId: id }
+        })
+
+        const newTotalPrice = updatedOrderItems.reduce((total, item) => {
+            return total + Number(item.totalPrice)
+        }, 0)
+
+        // Atualizar total do pedido
+        await prismaClient.order.update({
+            where: { id },
+            data: { totalPrice: newTotalPrice }
+        })
+
+        // Retornar pedido atualizado
+        const updatedOrder = await prismaClient.order.findUnique({
+            where: { id },
+            include: { items: true }
+        })
+
+        return updatedOrder;
+    }
+}
+
 export { 
     CreateOrderService, 
     ListOrdersService, 
     GetOrderByIdService, 
-    DeleteOrderService 
+    DeleteOrderService,
+    UpdateOrderService,
+    UpdateOrderRequest
 }

@@ -4,14 +4,16 @@ import {
     ListProductsService, 
     GetProductByIdService, 
     UpdateProductService, 
-    DeleteProductService 
+    DeleteProductService,
+    
 } from '../services/product/product';
 
 import { 
     CreateOrderService, 
     ListOrdersService, 
     GetOrderByIdService, 
-    DeleteOrderService 
+    DeleteOrderService,
+    UpdateOrderService
 } from '../services/order/order';
 
 const router = Router();
@@ -81,6 +83,19 @@ router.get('/orders/:id', async (req: Request, res: Response) => {
     const service = new GetOrderByIdService();
     const order = await service.execute(req.params.id);
     return res.json(order);
+});
+
+// Atualizar pedido
+router.put('/orders/:id', async (req: Request, res: Response) => {
+    try {
+        const service = new UpdateOrderService();
+        const { items } = req.body;
+        const { id } = req.params;
+        const order = await service.execute({ id, items });
+        return res.json(order);
+    } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+    }
 });
 
 // Excluir pedido
