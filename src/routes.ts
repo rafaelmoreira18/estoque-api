@@ -16,6 +16,11 @@ import {
 
 const router = Router();
 
+router.get('/ping', (req, res) => {
+  console.log('Ping recebido!');
+  res.json({ message: 'pong' });
+});
+
 // ===== ROTAS DE PRODUTOS =====
 
 // Criar produto
@@ -24,7 +29,6 @@ router.post('/products', async (req: Request, res: Response) => {
     const product = await service.execute(req.body);
     return res.json(product);
 });
-
 // Listar produtos
 router.get('/products', async (req: Request, res: Response) => {
     const service = new ListProductsService();
@@ -88,7 +92,7 @@ router.delete('/orders/:id', async (req: Request, res: Response) => {
 
 // ===== ROTA DE TESTE =====
 router.get('/teste', (req: Request, res: Response) => {
-    throw new Error('erro message');
+        return res.json("name");
 });
 
 export { router };

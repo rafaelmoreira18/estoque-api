@@ -18,7 +18,7 @@ interface UpdateProductRequest {
 // Criar Produto
 class CreateProductService {
     async execute({ name, description, price, stock }: ProductRequest) {
-        
+        console.log('Recebido:', { name, description, price, stock });
         if (!name) {
             throw new Error("Nome do produto é obrigatório")
         }
@@ -27,8 +27,8 @@ class CreateProductService {
             throw new Error("Preço deve ser maior que zero")
         }
 
-        if (stock < 0) {
-            throw new Error("Estoque não pode ser negativo")
+        if (stock <= 0 || !stock) {
+            throw new Error("Estoque não pode ser 0")
         }
 
         const product = await prismaClient.product.create({
@@ -39,7 +39,7 @@ class CreateProductService {
                 stock
             }
         })
-
+        console.log("produto foi criado!");
         return product;
     }
 }
